@@ -4,14 +4,14 @@ window.onload = function () {
         width = canvas.width = window.innerWidth,
         height = canvas.height = window.innerHeight,
         positions = [
-            [1, 2,         3],
-            [4, undefined, 6],
-            [7, 8,         9]
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, undefined]
         ],
         field = createField(context, width, height, window.requestAnimationFrame);
 
     field.draw(positions);
-
+    onFinished(positions, 2, 2, "nope");
 
     function select (acts) {
         var prob = acts.length;
@@ -24,19 +24,15 @@ window.onload = function () {
         }
         return acts[0];
     }
-
-
     function isValid(coords) {
         return !(coords[0] < 0 || coords[0] > 2 || coords[1] < 0 || coords[1] > 2);
     }
-
     function isOposite(a, b) {
-        console.log(JSON.stringify(a), JSON.stringify(b));
-        var res =  a == "left" && b == "right" || a == "right" && b == "left" || a == "up" && b == "down" || a == "down" && b == "up";
-        console.log(res);
-        return res;
+        return a == "left"  && b == "right"
+            || a == "right" && b == "left"
+            || a == "up"    && b == "down"
+            || a == "down"  && b == "up";
     }
-
     function onFinished(elems, freeCol, freeRow, prev) {
         var acts = {
             left:  [freeCol + 1, freeRow    ],
@@ -45,18 +41,12 @@ window.onload = function () {
             down:  [freeCol,     freeRow - 1]
         },
         funs = [];
-
-
         for (var fun in acts) {
             if (isValid(acts[fun]) && !isOposite(fun, prev)) {
                 funs.push(fun);
             }
         }
-
-
-        var res = select(funs);
-        // console.log(acts, funs, res);
-        switch (res) {
+        switch (select(funs)) {
             case "left":
                 field.moveLeft(elems, acts.left[0], acts.left[1], onFinished);
                 break;
@@ -73,11 +63,7 @@ window.onload = function () {
                 console.log(funs);
                 break;
         }
-
-
     }
-
-    field.moveLeft(positions, 2, 1, onFinished);
 };
 
 window.addEventListener('resize', function(event){
