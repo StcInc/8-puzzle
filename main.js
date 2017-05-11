@@ -1,17 +1,113 @@
+var PRIMARY_COLOR = "#1565C0";
+
 window.onload = function () {
     var canvas = document.getElementById('canvas'),
         context = canvas.getContext("2d"),
         width = canvas.width = window.innerWidth,
         height = canvas.height = window.innerHeight,
-        positions = [
-            [1, 2, 3],
-            [4, 5, 6],
-            [7, 8, undefined]
-        ],
-        field = createField(context, width, height, window.requestAnimationFrame);
+        field = createField(context, width, height, window.requestAnimationFrame),
+        finished = document.getElementById("finished");
 
+    finished.style.visibility = "hidden";
+    finished.width = width;
+    finished.height = "200px";
+    finished.style.textAlign ="center";
+    finished.style.color = PRIMARY_COLOR;
+
+    var pos = to2d(permutation([1, 2, 3, 4, 5, 6, 7, 8, undefined]));
+    runAStar(
+        pos,
+        getEmptyPos(pos, undefined),
+        to2d([1, 2, 3, 4, 5, 6, 7, 8, undefined]),
+        {col: 2, row: 2},
+        field,
+        function () {
+            document.getElementById("finished").style.visibility = "visible";
+        });
+};
+
+window.addEventListener('resize', function(event){
+    window.onload();
+});
+
+
+
+function runAStar(initialPos, initialEmptyPos, finalPos, finalEmptyPos, field, onEnd) {
+    var MAX_GAME_ELEM = 8;
+
+
+
+
+
+    var path = findSolution(initialPos, initialEmptyPos); // ["left", "up", "right", "down", ...]
+    // var path =  ["right", "right", "left", "left"];
+    var current = 0;
+
+    field.draw(initialPos);
+    onNextStep(initialPos, initialEmptyPos);
+
+    /**
+     * Renders the result movement sequence step by step
+     */
+    function onNextStep(elems, emptyPos) {
+        if (current >= path.length) {
+            onEnd();
+        }
+        else { // step by step show the solution
+            switch (path[current++]) {
+                case "left":
+                    field.moveLeft(elems, {col: emptyPos.col + 1,
+                                           row: emptyPos.row}, onNextStep);
+                    break;
+                case "right":
+                    field.moveRight(elems, {col: emptyPos.col -1,
+                                            row: emptyPos.row}, onNextStep);
+                    break;
+                case "up":
+                    field.moveUp(elems, {col: emptyPos.col,
+                                         row: emptyPos.row + 1}, onNextStep);
+                    break;
+                case "down":
+                    field.moveDown(elems, {col: emptyPos.col,
+                                           row: emptyPos.row - 1}, onNextStep)
+                    break;
+                default:
+                    console.log(path, current);
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Returns true, if given state of field is final, i. e. all the elements
+     * are ordered and the empty element is in the right bottom corner
+     * @param elems : state of field
+     */
+    function gameEnd(elems) {
+        var prev = 0;
+        for (var i = 0; i < elems.length; ++i) {
+            for (var j = 0; j < elems[i].length; ++j) {
+                if ((elems[i][j] == undefined) && (prev == MAX_GAME_ELEM)
+                    || (elems[i][j] == prev + 1))
+                {
+                    ++prev;
+                }
+                else {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+}
+
+/**
+ * Randomly moves tiles on the field, starting with given positions
+ */
+function runInfiniteMovement(positions, field) {
     field.draw(positions);
-    onFinished(positions, 2, 2, "nope");
+    onFinished(positions, {col: 2, row: 2}, "nope");
 
     function select (acts) {
         var prob = acts.length;
@@ -24,8 +120,12 @@ window.onload = function () {
         }
         return acts[0];
     }
+
     function isValid(coords) {
-        return !(coords[0] < 0 || coords[0] > 2 || coords[1] < 0 || coords[1] > 2);
+        return !(coords.col < 0
+              || coords.col > 2
+              || coords.row < 0
+              || coords.row > 2);
     }
     function isOposite(a, b) {
         return a == "left"  && b == "right"
@@ -33,43 +133,44 @@ window.onload = function () {
             || a == "up"    && b == "down"
             || a == "down"  && b == "up";
     }
-    function onFinished(elems, freeCol, freeRow, prev) {
+    function onFinished(elems, emptyPos, prev) {
         var acts = {
-            left:  [freeCol + 1, freeRow    ],
-            right: [freeCol - 1, freeRow    ],
-            up:    [freeCol,     freeRow + 1],
-            down:  [freeCol,     freeRow - 1]
-        },
-        funs = [];
+                left:  {col: emptyPos.col + 1, row: emptyPos.row    },
+                right: {col: emptyPos.col - 1, row: emptyPos.row    },
+                up:    {col: emptyPos.col,     row: emptyPos.row + 1},
+                down:  {col: emptyPos.col,     row: emptyPos.row - 1}
+            },
+            moves = [];
+
         for (var fun in acts) {
             if (isValid(acts[fun]) && !isOposite(fun, prev)) {
-                funs.push(fun);
+                moves.push(fun);
             }
         }
-        switch (select(funs)) {
+        switch (select(moves)) {
             case "left":
-                field.moveLeft(elems, acts.left[0], acts.left[1], onFinished);
+                field.moveLeft(elems, acts.left, onFinished);
                 break;
             case "right":
-                field.moveRight(elems, acts.right[0], acts.right[1], onFinished);
+                field.moveRight(elems, acts.right, onFinished);
                 break;
             case "up":
-                field.moveUp(elems, acts.up[0], acts.up[1], onFinished);
+                field.moveUp(elems, acts.up, onFinished);
                 break;
             case "down":
-                field.moveDown(elems, acts.down[0], acts.down[1], onFinished);
+                field.moveDown(elems, acts.down, onFinished);
                 break;
             default:
-                console.log(funs);
+                console.log(moves);
                 break;
         }
     }
-};
+}
 
-window.addEventListener('resize', function(event){
-    window.onload();
-});
 
+/**
+ * Creates game field visualising object
+ */
 function createField(ctx, width, height, requestAnimationFrame) { var f = {
     TILE_SIDE : 150,
     TILE_SPACING : 0.5,
@@ -83,7 +184,9 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
         for (var i = 0; i < elems.length; ++i) {
             for (var j = 0; j < elems[i].length; ++j) {
                 if (elems[i][j] != undefined) {
-                    this.drawTile(this.getTileX(j), this.getTileY(i), elems[i][j]);
+                    this.drawTile(this.getTileX(j),
+                                  this.getTileY(i),
+                                  elems[i][j]);
                 }
             }
         }
@@ -92,14 +195,15 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
     /**
      * Animates the movement of element at given position left
      * @param elems : array of positions
-     * @param col   : element's column
-     * @param row   : element's row
+     * @param elemToMove : col, row of the element to be moved
      * @param onFinish : callback, taking resulting array of elements, free col and row, previous move,
      *   that will be called after animations is done
      */
-    moveLeft : function (elems, col, row, onFinish) {
-        var targetX = this.getTileX(col - 1),
-        step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
+    moveLeft : function (elems, elemToMove, onFinish) {
+        var col = elemToMove.col,
+            row = elemToMove.row,
+            targetX = this.getTileX(col - 1),
+            step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
 
         this.move(elems, col, row, -step, 0,
             function (x, y) { // has finished
@@ -108,23 +212,22 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
             function (text) { // onFinish
                 elems[row][col-1] = text;
                 f.draw(elems);
-                onFinish(elems, col, row, "left");
+                onFinish(elems, elemToMove, "left");
             });
     },
-
-
 
     /**
      * Animates the movement of element at given position right
      * @param elems    : array of positions
-     * @param col      : element's column
-     * @param row      : element's row
+     * @param elemToMove : col, row of the element to be moved
      * @param onFinish : callback, taking resulting array of elements, free col and row, previous move
      *   that will be called after animations is done
      */
-    moveRight : function (elems, col, row, onFinish) {
-        var targetX = this.getTileX(col + 1),
-        step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
+    moveRight : function (elems, elemToMove, onFinish) {
+        var col = elemToMove.col,
+            row = elemToMove.row,
+            targetX = this.getTileX(col + 1),
+            step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
 
         this.move(elems, col, row, step, 0,
             function (x, y) { // has finished
@@ -133,21 +236,22 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
             function (text) { // onFinish
                 elems[row][col+1] = text;
                 f.draw(elems);
-                onFinish(elems, col, row, "right");
+                onFinish(elems, elemToMove, "right");
             });
     },
 
     /**
      * Animates the movement of element at given position up
      * @param elems : array of positions
-     * @param col   : element's column
-     * @param row   : element's row
+     * @param elemToMove : col, row of the element to be moved
      * @param onFinish : callback, taking resulting array of elements, free col and row, previous move,
      *   that will be called after animations is done
      */
-    moveUp : function (elems, col, row, onFinish) {
-        var targetY = this.getTileY(row - 1),
-        step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
+    moveUp : function (elems, elemToMove, onFinish) {
+        var col = elemToMove.col,
+            row = elemToMove.row,
+            targetY = this.getTileY(row - 1),
+            step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
 
         this.move(elems, col, row, 0, -step,
             function (x, y) { // has finished
@@ -156,7 +260,7 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
             function (text) { // onFinish
                 elems[row - 1][col] = text;
                 f.draw(elems);
-                onFinish(elems, col, row, "up");
+                onFinish(elems, elemToMove, "up");
             });
     },
 
@@ -164,14 +268,15 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
     /**
      * Animates the movement of element at given position down
      * @param elems : array of positions
-     * @param col   : element's column
-     * @param row   : element's row
+     * @param elemToMove : col, row of the element to be moved
      * @param onFinish : callback, taking resulting array of elements free col and row, previous move,
      *   that will be called after animations is done
      */
-    moveDown : function (elems, col, row, onFinish) {
-        var targetY = this.getTileY(row + 1),
-        step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
+    moveDown : function (elems, elemToMove, onFinish) {
+        var col = elemToMove.col,
+            row = elemToMove.row,
+            targetY = this.getTileY(row + 1),
+            step = this.TILE_SIDE / this.PART_SEGM_AMOUNT;
 
         this.move(elems, col, row, 0, step,
             function (x, y) { // has finished
@@ -180,7 +285,7 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
             function (text) { // onFinish
                 elems[row + 1][col] = text;
                 f.draw(elems);
-                onFinish(elems, col, row, "down");
+                onFinish(elems, elemToMove, "down");
             });
     },
 
@@ -258,7 +363,7 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
     drawTile : function  (x, y, text) {
         var w = this.getTileWidth(),
             h = w;
-        ctx.fillStyle = "#1565C0";
+        ctx.fillStyle = PRIMARY_COLOR;
         ctx.fillRect(x, y, w, h);
 
         ctx.textBaseline = "middle";
@@ -282,3 +387,212 @@ function createField(ctx, width, height, requestAnimationFrame) { var f = {
     }
 
 }; return f;}
+
+/**
+ * Creates 2-dimensional array out of one-dimensional
+ * @param a - single dimensional array
+ */
+function to2d(a) {
+    var res = [];
+    var row = [];
+    var side = Math.sqrt(a.length);
+    for (var i = 0; i < side; ++i) {
+        row = [];
+        for (var j = 0; j < side; ++j) {
+            row.push(a[i * side + j]);
+        }
+        res.push(row);
+    }
+    return res;
+}
+
+/**
+ * Returns random true or false
+ */
+function randomPick() {
+    return Math.floor(Math.random() * 2) == 0;
+}
+
+/**
+ * Returns randomly permuted one-dimensional array
+  * @param a - initial array to make permutation of
+ */
+function permutation(a){
+    var tmp = 0;
+    for (var i = 0; i < a.length; ++i) {
+        for (var j = 0; j < a.length; ++j) {
+            if (i != j && randomPick()) {
+                tmp = a[i];
+                a[i] = a[j];
+                a[j] = tmp;
+            }
+        }
+    }
+    return a;
+}
+
+
+/**
+ * Finds {col:, row:} - position of the specified element in two dimensional array
+ * return undefined if element was not found in array
+ * @param elems : a two dimensional array - where to find
+ * @param elemToFind : an element position of which is required
+ */
+function getEmptyPos(elems, elemToFind) {
+    for (var i = 0; i < elems.length; ++i) {
+        for (var j = 0; j < elems[i].length; ++j) {
+            if (elems[i][j] == undefined) {
+                return {col: j, row: i};
+            }
+        }
+    }
+    return undefined;
+}
+
+
+/**
+ * Returns list of avaliable moves with positions
+ * @param pos : position of undefined element
+ */
+function getAvailableMoves(pos) {
+    function isValid(coords) {
+        return !(coords.col < 0
+              || coords.col > 2
+              || coords.row < 0
+              || coords.row > 2);
+    }
+
+    var acts = {
+            left:  {col: pos.col + 1, row: pos.row    },
+            right: {col: pos.col - 1, row: pos.row    },
+            up:    {col: pos.col,     row: pos.row + 1},
+            down:  {col: pos.col,     row: pos.row - 1}
+        };
+    for (var act in acts) {
+        if (!isValid(acts[act])) {
+            delete acts[act];
+        }
+    }
+    return acts;
+}
+
+function getNewState(prevState, newEmptyPos) {
+    var elems = [];
+    var row;
+    for (var i = 0; i < prevState.elements.length; ++i) {
+        row = [];
+        for (var j = 0; j < prevState.elements[i].length; ++j) {
+            if (i == prevState.emptyPos.row && j == prevState.emptyPos.col) {
+                row.push(prevState.elements[newEmptyPos.row][newEmptyPos.col]);
+            }
+            else if (i == newEmptyPos.row && j == newEmptyPos.col) {
+                row.push(undefined);
+            }
+            else {
+                row.push(prevState.elements[i][j]);
+            }
+        }
+        elems.push(row);
+    }
+    return {elements: elems, emptyPos: newEmptyPos, moves: prevState.moves + 1};
+}
+
+
+function heuristic(state) { // count of elements not on their places
+    var res = 0;
+    var elems = state.elements;
+    for (var i = 0; i < elems.length; ++i) {
+        for (var j = 0; j < elems[i].length; ++j) {
+            if (state[i][j] != (i * elems.length + j + 1)) {
+                ++res;
+            }
+        }
+    }
+    return res;
+}
+
+/**
+ * Checks two 2-dimensional arrays for equality of elements
+ */
+function sameArrays(a1, a2) {
+    if (a1.length == a2.length) {
+        for (var i = 0; i < a1.length; ++i) {
+            if (a1[i].length == a2[i].length) {
+                for (var j = 0; j < a1[i].length; ++j) {
+                    if (a1[i][j] != a2[i][j]) {
+                        return false;
+                    }
+                }
+            }
+            else {
+                console.log(a1, a2, "Have different row lengths");
+                return false;
+            }
+        }
+    }
+    else {
+        console.log(a1, a2, "Have different column heights");
+        return false;
+    }
+    return true;
+}
+
+
+/**
+ * Makes the hash of state's elements array, considering their positions
+ */
+function hashState(state) { // power of 11
+    var res = 0;
+    var p = 1;
+    for (var i = 0; i < state.elements.length; ++i) {
+        for (var j = 0; j < state.elements[i].length; ++j) {
+            if (state.elements[i][j] != undefined) {
+                res += state.elements[i][j] * p;
+            }
+            p *= 11;
+        }
+    }
+    return res;
+}
+
+
+/**
+ * Uses A* to find the sequence of steps to be made to win the game
+ */
+function findSolution(initialPos, initialEmptyPos) {
+    var open = [{elements: initialPos, emptyPos: initialEmptyPos, moves: 0}];
+    open[0].stateHash = hashState(open[0]);
+
+    var closed = []; // stateHashes of the visited states
+    var predecessor = {}; // stateHash : {prevState, state, move}
+
+    while (open.length > 0) {
+        var current = open[0];
+        if (closed.find(function (el) { return el.stateHash == current.stateHash; }) != undefined) { // already visited
+            delete open[0];
+            continue;
+        }
+        var moves = getAvailableMoves(current.emptyPos);
+        for (var m in moves) {
+            var newState = getNewState(current, moves[m]);
+            newState.stateHash = newHash = hashState(newState);
+            if (predecessor[newHash] != undefined) {
+                // if we can get into newState for less then earlier, update the predecessor
+                if (predecessor[newHash].state.moves > newState.moves) {
+                    predecessor[newHash].state = newState;
+                    predecessor[newHash].prevState = current;
+                    predecessor[newHash].move = m;
+                }
+            }
+            else { // if there is no such state, add newState in predecessor
+                predecessor[newHash] = {prevState: current, state: newState, move: m};
+            }
+        }
+
+        closed.push(current.stateHash);
+        delete open[0];
+        open.sort(function(s1, s2) {
+            // sorting by heuristic + moves
+        });
+    }
+}
