@@ -15,12 +15,8 @@ window.onload = function () {
     finished.style.textAlign ="center";
     finished.style.color = PRIMARY_COLOR;
 
-    var pos = to2d(permutation([1, 2, 3, 4, 5, 6, 7, 8, undefined]));
-    field.draw(pos);
 
     runAStar(
-        pos,
-        getEmptyPos(pos, undefined),
         to2d([1, 2, 3, 4, 5, 6, 7, 8, undefined]),
         {col: 2, row: 2},
         field,
@@ -37,9 +33,16 @@ window.addEventListener('resize', function(event){
 
 
 
-function runAStar(initialPos, initialEmptyPos, finalPos, finalEmptyPos, field, onEnd) {
+function runAStar(finalPos, finalEmptyPos, field, onEnd) {
 
-    var path = findSolution(initialPos, initialEmptyPos); // ["left", "up", "right", "down", ...]
+    var path = [];
+    while (path.length == 0) {
+        var pos = to2d(permutation([1, 2, 3, 4, 5, 6, 7, 8, undefined]));
+        field.draw(pos);
+        path = findSolution(pos, getEmptyPos(pos, undefined)); // ["left", "up", "right", "down", ...]
+    }
+    var initialPos = pos;
+    var initialEmptyPos = getEmptyPos(pos, undefined);
 
     var current = 0;
 
@@ -524,13 +527,29 @@ function hashState(state) { // power of 11
 }
 
 function heuristic(state) { // count of elements not on their places
+    var pos = {
+        1: [0, 0],
+        2: [0, 1],
+        3: [0, 2],
+        4: [1, 0],
+        5: [1, 1],
+        6: [1, 2],
+        7: [2, 0],
+        8: [2, 1]
+    };
+
     var res = 0;
     var elems = state.elements;
     for (var i = 0; i < elems.length; ++i) {
         for (var j = 0; j < elems[i].length; ++j) {
-            if (elems[i][j] != (i * elems.length + j + 1)) {
-                ++res;
+            var num = elems[i][j];
+            if (typeof num === "undefined") {
+                continue;
             }
+            res += Math.abs(pos[num][0] - i) + Math.abs(pos[num][1] - j);
+            // if (elems[i][j] != (i * elems.length + j + 1)) {
+            //     ++res;
+            // }
         }
     }
     return res;
@@ -579,6 +598,8 @@ function findSolution(initialPos, initialEmptyPos) {
 
     var closed = []; // stateHashes of the visited states
     var predecessor = {}; // stateHash : {prevState, state, move}
+
+    var iters = 0;
 
     while (open.length > 0) {
         var current = open[0];
@@ -629,6 +650,12 @@ function findSolution(initialPos, initialEmptyPos) {
             }
             return 0;
         });
+
+        iters++;
+        if (iters > 100) {
+            return [];
+            window.location = window.location;
+        }
     }
 
     // restore path
