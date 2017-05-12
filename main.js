@@ -1,4 +1,5 @@
 var PRIMARY_COLOR = "#1565C0";
+var MAX_GAME_ELEM = 8;
 
 window.onload = function () {
     var canvas = document.getElementById('canvas'),
@@ -15,6 +16,8 @@ window.onload = function () {
     finished.style.color = PRIMARY_COLOR;
 
     var pos = to2d(permutation([1, 2, 3, 4, 5, 6, 7, 8, undefined]));
+    field.draw(pos);
+
     runAStar(
         pos,
         getEmptyPos(pos, undefined),
@@ -24,6 +27,8 @@ window.onload = function () {
         function () {
             document.getElementById("finished").style.visibility = "visible";
         });
+
+
 };
 
 window.addEventListener('resize', function(event){
@@ -33,14 +38,9 @@ window.addEventListener('resize', function(event){
 
 
 function runAStar(initialPos, initialEmptyPos, finalPos, finalEmptyPos, field, onEnd) {
-    var MAX_GAME_ELEM = 8;
-
-
-
-
 
     var path = findSolution(initialPos, initialEmptyPos); // ["left", "up", "right", "down", ...]
-    // var path =  ["right", "right", "left", "left"];
+
     var current = 0;
 
     field.draw(initialPos);
@@ -78,27 +78,6 @@ function runAStar(initialPos, initialEmptyPos, finalPos, finalEmptyPos, field, o
         }
     }
 
-    /**
-     * Returns true, if given state of field is final, i. e. all the elements
-     * are ordered and the empty element is in the right bottom corner
-     * @param elems : state of field
-     */
-    function gameEnd(elems) {
-        var prev = 0;
-        for (var i = 0; i < elems.length; ++i) {
-            for (var j = 0; j < elems[i].length; ++j) {
-                if ((elems[i][j] == undefined) && (prev == MAX_GAME_ELEM)
-                    || (elems[i][j] == prev + 1))
-                {
-                    ++prev;
-                }
-                else {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
 
 }
 
@@ -498,18 +477,7 @@ function getNewState(prevState, newEmptyPos) {
 }
 
 
-function heuristic(state) { // count of elements not on their places
-    var res = 0;
-    var elems = state.elements;
-    for (var i = 0; i < elems.length; ++i) {
-        for (var j = 0; j < elems[i].length; ++j) {
-            if (state[i][j] != (i * elems.length + j + 1)) {
-                ++res;
-            }
-        }
-    }
-    return res;
-}
+
 
 /**
  * Checks two 2-dimensional arrays for equality of elements
@@ -555,44 +523,125 @@ function hashState(state) { // power of 11
     return res;
 }
 
+function heuristic(state) { // count of elements not on their places
+    var res = 0;
+    var elems = state.elements;
+    for (var i = 0; i < elems.length; ++i) {
+        for (var j = 0; j < elems[i].length; ++j) {
+            if (elems[i][j] != (i * elems.length + j + 1)) {
+                ++res;
+            }
+        }
+    }
+    return res;
+}
+
+
+/**
+ * Returns true, if given state of field is final, i. e. all the elements
+ * are ordered and the empty element is in the right bottom corner
+ * @param elems : state of field
+ */
+function gameEnd(state) {
+    if (state.emptyPos.col != 2 || state.emptyPos.row != 2) {
+        return false;
+    }
+    var elems = state.elements;
+    var prev = 0;
+    for (var i = 0; i < elems.length; ++i) {
+        for (var j = 0; j < elems[i].length; ++j) {
+            if ((elems[i][j] == undefined) && (prev == MAX_GAME_ELEM)
+                || (elems[i][j] == prev + 1))
+            {
+                ++prev;
+            }
+            else {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
 
 /**
  * Uses A* to find the sequence of steps to be made to win the game
  */
 function findSolution(initialPos, initialEmptyPos) {
-    var open = [{elements: initialPos, emptyPos: initialEmptyPos, moves: 0}];
-    open[0].stateHash = hashState(open[0]);
+    var initialState = {
+        elements: initialPos,
+        emptyPos: initialEmptyPos,
+        moves: 0
+    };
+    initialState.stateHash = hashState(initialState);
+    var open = [initialState];
 
     var closed = []; // stateHashes of the visited states
     var predecessor = {}; // stateHash : {prevState, state, move}
 
     while (open.length > 0) {
         var current = open[0];
-        if (closed.find(function (el) { return el.stateHash == current.stateHash; }) != undefined) { // already visited
-            delete open[0];
+
+        if (closed.find(function (el) { return el == current.stateHash; }) != undefined) { // already visited
+            open.shift();
             continue;
         }
+
+        if (current.stateHash == 169343516) {
+            console.log("found");
+            break;
+        }
+
+        // if (gameEnd(current)) {
+        //     break;
+        // }
+
         var moves = getAvailableMoves(current.emptyPos);
+
         for (var m in moves) {
             var newState = getNewState(current, moves[m]);
-            newState.stateHash = newHash = hashState(newState);
-            if (predecessor[newHash] != undefined) {
+            newState.stateHash = hashState(newState);
+            if (predecessor[newState.stateHash] != undefined) {
                 // if we can get into newState for less then earlier, update the predecessor
-                if (predecessor[newHash].state.moves > newState.moves) {
-                    predecessor[newHash].state = newState;
-                    predecessor[newHash].prevState = current;
-                    predecessor[newHash].move = m;
+                if (predecessor[newState.stateHash].state.moves > newState.moves) {
+                    predecessor[newState.stateHash].state = newState;
+                    predecessor[newState.stateHash].prevState = current;
+                    predecessor[newState.stateHash].move = m;
                 }
             }
             else { // if there is no such state, add newState in predecessor
-                predecessor[newHash] = {prevState: current, state: newState, move: m};
+                predecessor[newState.stateHash] = {prevState: current, state: newState, move: m};
             }
+            open.push(newState);
         }
 
         closed.push(current.stateHash);
-        delete open[0];
+        open.shift();
         open.sort(function(s1, s2) {
-            // sorting by heuristic + moves
+            var s1score = heuristic(s1) + s1.moves;
+            var s2score = heuristic(s2) + s2.moves;
+            if (s1score < s2score) {
+                return -1;
+            }
+            if (s1score > s2score) {
+                return 1;
+            }
+            return 0;
         });
+    }
+
+    // restore path
+    if (current != initialState) {
+        var path = [];
+        while (current != initialState) {
+            console.log(predecessor[current.stateHash].move);
+            path.unshift(predecessor[current.stateHash].move);
+            current = predecessor[current.stateHash].prevState;
+        }
+        return path;
+    }
+    else {
+        return [];
     }
 }
